@@ -39,7 +39,7 @@
 
 -record(state,
         { pin               :: pos_integer(),
-          pids = []         :: [pid()],
+          listeners = []    :: list({pid(), reference()}),
           port              :: port()
         }).
 
@@ -157,14 +157,25 @@ handle_call({set_int, Condition}, _From, #state{port=Port}=State) ->
     call_port(Port, set_int, Condition),
     {reply, ok, State};
 handle_call({register_int, Pid}, _From,
-            #state{pids=Pids}=State) ->
-    link(Pid),
-    NewPids = [Pid|Pids],
-    {reply, ok, State#state{pids=NewPids}};
+            #state{listeners=L}=State) ->
+    case lists:keyfind(Pid, 1, L) of
+        false ->
+            MRef = monitor(process, Pid),
+            L2 = lists:keystore(Pid, 1, L, {Pid, MRef}),
+            {reply, ok, State#state{listeners=L2}};
+        {Pid, _MRef} ->
+            {reply, ok, State}
+    end;
 handle_call({unregister_int, Pid}, _From,
-            #state{pids=Pids}=State) ->
-    NewPids = lists:delete(Pid, Pids),
-    {reply, ok, State#state{pids=NewPids}}.
+            #state{listeners=L}=State) ->
+    case lists:keyfind(Pid, 1, L) of
+        false ->
+            {reply, ok, State};
+        {Pid, MRef} ->
+            demonitor(MRef, [flush]),
+            L2 = lists:keydelete(Pid, 1, L),
+            {reply, ok, State#state{listeners=L2}}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -181,14 +192,14 @@ handle_cast(stop, State) ->
     {stop, normal, State}.
 
 handle_info({Port, {data, <<?NOTIFICATION, Msg/binary>>}},
-            #state{port=Port, pids=Pids}=State) ->
+            #state{port=Port, listeners=L}=State) ->
     Notif = binary_to_term(Msg),
-    [ Pid ! Notif || Pid <- Pids ],
+    [ Pid ! Notif || {Pid, _MRef} <- L ],
     {noreply, State};
-handle_info({'EXIT', DeadPid, _Reason},     % a listener died
-	    #state{pids=Pids}=State) ->
-    NewPids = [ Pid || Pid <- Pids, Pid /= DeadPid ],
-    {noreply, State#state{pids=NewPids}}.
+handle_info({'DOWN', _MRef, process, DeadPid, _Reason},     % a listener died
+            #state{listeners=L}=State) ->
+    L2 = lists:keydelete(DeadPid, 1, L),
+    {noreply, State#state{listeners=L2}}.
 
 terminate(_Reason, _State) ->
   ok.
