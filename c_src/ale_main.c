@@ -22,11 +22,12 @@
 extern int gpio_main(int argc, char *argv[]);
 extern int i2c_main(int argc, char *argv[]);
 extern int spi_main(int argc, char *argv[]);
+extern int sp_list_main();
 
 int main(int argc, char *argv[])
 {
     if (argc < 2)
-        errx(EXIT_FAILURE, "Must pass mode (e.g. gpio, i2c, spi)");
+        errx(EXIT_FAILURE, "must pass mode (e.g. gpio, i2c, spi, sp_list)");
 
     if (strcmp(argv[1], "gpio") == 0)
         return gpio_main(argc, argv);
@@ -34,8 +35,10 @@ int main(int argc, char *argv[])
         return i2c_main(argc, argv);
     else if (strcmp(argv[1], "spi") == 0)
         return spi_main(argc, argv);
+    else if (strcmp(argv[1], "sp_list") == 0)
+        return sp_list_main();
     else
-        errx(EXIT_FAILURE, "Unknown mode '%s'", argv[1]);
+        errx(EXIT_FAILURE, "unknown mode '%s'", argv[1]);
 
     return 1;
 }

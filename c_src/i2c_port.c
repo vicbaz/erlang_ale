@@ -115,7 +115,7 @@ static void i2c_handle_request(const char *req, void *cookie)
     // { atom(), term() }
     int req_index = sizeof(uint16_t);
     if (ei_decode_version(req, &req_index, NULL) < 0)
-        errx(EXIT_FAILURE, "Message version issue?");
+        errx(EXIT_FAILURE, "message version issue?");
 
     int arity;
     if (ei_decode_tuple_header(req, &req_index, &arity) < 0 ||
@@ -208,7 +208,7 @@ static void i2c_handle_request(const char *req, void *cookie)
 int i2c_main(int argc, char *argv[])
 {
     if (argc != 4)
-        errx(EXIT_FAILURE, "Must pass device path and device address as arguments");
+        errx(EXIT_FAILURE, "must pass device path and device address as arguments");
 
     struct i2c_info i2c;
     i2c_init(&i2c, argv[2], strtoul(argv[3], 0, 0));

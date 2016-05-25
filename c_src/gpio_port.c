@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+#define _XOPEN_SOURCE 500
+
 #include <err.h>
 #include <poll.h>
 #include <stdio.h>
@@ -62,11 +64,11 @@ struct gpio {
  * @brief write a string to a sysfs file
  * @return returns 0 on failure, >0 on success
  */
-int sysfs_write_file(const char *pathname, const char *value)
+static int sysfs_write_file(const char *pathname, const char *value)
 {
     int fd = open(pathname, O_WRONLY);
     if (fd < 0) {
-        debug("Error opening %s", pathname);
+        debug("error opening %s", pathname);
         return 0;
     }
 
@@ -75,7 +77,7 @@ int sysfs_write_file(const char *pathname, const char *value)
     close(fd);
 
     if (written < 0 || (size_t) written != count) {
-        warn("Error writing '%s' to %s", value, pathname);
+        warn("error writing '%s' to %s", value, pathname);
         return 0;
     }
 
@@ -93,7 +95,7 @@ int sysfs_write_file(const char *pathname, const char *value)
  *
  * @return 	1 for success, -1 for failure
  */
-int gpio_init(struct gpio *pin, unsigned int pin_number, enum gpio_state dir)
+static int gpio_init(struct gpio *pin, unsigned int pin_number, enum gpio_state dir)
 {
     /* Initialize the pin structure. */
     pin->state = dir;
@@ -153,7 +155,7 @@ int gpio_init(struct gpio *pin, unsigned int pin_number, enum gpio_state dir)
  *
  * @return 	1 for success, -1 for failure
  */
-int gpio_write(struct gpio *pin, unsigned int val)
+static int gpio_write(struct gpio *pin, unsigned int val)
 {
     if (pin->state != GPIO_OUTPUT)
         return -1;
@@ -173,7 +175,7 @@ int gpio_write(struct gpio *pin, unsigned int val)
 *
 * @return 	The pin value if success, -1 for failure
 */
-int gpio_read(struct gpio *pin)
+static int gpio_read(struct gpio *pin)
 {
     char buf;
     ssize_t amount_read = pread(pin->fd, &buf, sizeof(buf), 0);
@@ -203,7 +205,7 @@ int gpio_read(struct gpio *pin)
  *
  * @return  Returns 1 on success.
  */
-int gpio_set_int(struct gpio *pin, const char *mode)
+static int gpio_set_int(struct gpio *pin, const char *mode)
 {
     if (strcmp(mode, "none") == 0)
         pin->int_mode = GPIO_INT_NONE;
@@ -218,7 +220,7 @@ int gpio_set_int(struct gpio *pin, const char *mode)
     else if (strcmp(mode, "summarize") == 0)
         pin->int_mode = GPIO_INT_SUMMARIZE;
     else
-        errx(EXIT_FAILURE, "Unknown interrupt mode: %s", mode);
+        errx(EXIT_FAILURE, "unknown interrupt mode: %s", mode);
 
     if (pin->state != GPIO_INPUT)
         return 0;
@@ -272,7 +274,7 @@ static void gpio_report_interrupt(int pin_number, int is_rising)
  *
  * @param pin which pin to check
  */
-void gpio_process(struct gpio *pin)
+static void gpio_process(struct gpio *pin)
 {
     int value = gpio_read(pin);
 
@@ -331,7 +333,7 @@ void gpio_process(struct gpio *pin)
     pin->last_value = value;
 }
 
-void gpio_handle_request(const char *req, void *cookie)
+static void gpio_handle_request(const char *req, void *cookie)
 {
     struct gpio *pin = (struct gpio *) cookie;
 
@@ -339,7 +341,7 @@ void gpio_handle_request(const char *req, void *cookie)
     // { atom(), term() }
     int req_index = sizeof(uint16_t);
     if (ei_decode_version(req, &req_index, NULL) < 0)
-        errx(EXIT_FAILURE, "Message version issue?");
+        errx(EXIT_FAILURE, "message version issue?");
 
     int arity;
     if (ei_decode_tuple_header(req, &req_index, &arity) < 0 ||
@@ -408,11 +410,11 @@ int gpio_main(int argc, char *argv[])
     else if (strcmp(argv[3], "output") == 0)
         initial_state = GPIO_OUTPUT;
     else
-        errx(EXIT_FAILURE, "Specify 'input' or 'output'");
+        errx(EXIT_FAILURE, "specify 'input' or 'output'");
 
     struct gpio pin;
     if (gpio_init(&pin, pin_number, initial_state) < 0)
-	errx(EXIT_FAILURE, "Couldn't initialize gpio %d\n", pin_number);
+	errx(EXIT_FAILURE, "couldn't initialize gpio %d", pin_number);
 
     struct erlcmd handler;
     erlcmd_init(&handler, gpio_handle_request, &pin);

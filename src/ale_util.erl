@@ -13,7 +13,7 @@
 
 -spec open_port([list()]) -> port().
 open_port(Args) ->
-    open_port({spawn_executable, code:priv_dir(erlang_ale) ++ "/erlang-ale"},
+    open_port({spawn_executable, code:priv_dir(erlang_ale) ++ "/erlang_ale"},
               [{packet, 2},
               binary,
               use_stdio,

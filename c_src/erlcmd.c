@@ -76,7 +76,7 @@ static size_t erlcmd_try_dispatch(struct erlcmd *handler)
     memcpy(&be_len, handler->buffer, sizeof(uint16_t));
     size_t msglen = ntohs(be_len);
     if (msglen + sizeof(uint16_t) > sizeof(handler->buffer))
-	errx(EXIT_FAILURE, "Message too long");
+	errx(EXIT_FAILURE, "message too long");
 
     /* Check whether we've received the entire message */
     if (msglen + sizeof(uint16_t) > handler->index)

@@ -16,4 +16,7 @@ _deps
 _plugins
 _tdeps
 logs
-priv/erlang-ale
+priv/erlang_ale
+*.d
+.erlang.mk
+c_src/env.mk
