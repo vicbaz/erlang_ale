@@ -25,6 +25,9 @@
 #define SP_BUF_SIZE     1024
 #define WRITE_TIMEOUT   500
 
+#define REPLY           0
+#define NOTIFICATION    1
+
 struct sp
 {
     struct sp_port *port;
@@ -72,7 +75,7 @@ static void sp_process(struct sp *sp)
     ei_x_buff resp;
     int res;
 
-    init_resp(&resp, 1);
+    init_resp(&resp, NOTIFICATION);
 
     CHECK_EI(ei_x_encode_tuple_header(&resp, 2));
 
@@ -107,7 +110,7 @@ static void sp_handle_request(const char *req, void *cookie)
     if (ei_decode_atom(req, &req_index, cmd) < 0)
         errx(EXIT_FAILURE, "expecting command atom");
 
-    init_resp(&resp, 0);
+    init_resp(&resp, REPLY);
 
     if (strcmp(cmd, "write") == 0) {
         int type, size;
@@ -154,12 +157,9 @@ static void sp_list_handle_request(const char *req,
 
     if (strcmp(cmd, "list") == 0) {
         ei_x_buff resp;
-        char hdr[2] = {0, 0};
         struct sp_port **ports, **port;
 
-        CHECK_EI(ei_x_new(&resp));
-        CHECK_EI(ei_x_append_buf(&resp, hdr, sizeof(hdr)));
-        CHECK_EI(ei_x_encode_version(&resp));
+        init_resp(&resp, REPLY);
 
         CHECK_SP(sp_list_ports(&ports));
 
