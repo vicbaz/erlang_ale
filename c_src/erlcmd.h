@@ -24,7 +24,7 @@
 /*
  * Erlang request/response processing
  */
-#define ERLCMD_BUF_SIZE 1024
+#define ERLCMD_BUF_SIZE 4096
 struct erlcmd
 {
     char buffer[ERLCMD_BUF_SIZE];
@@ -35,9 +35,15 @@ struct erlcmd
 };
 
 void erlcmd_init(struct erlcmd *handler,
-		 void (*request_handler)(const char *req, void *cookie),
-		 void *cookie);
+        void (*request_handler)(const char *req, void *cookie),
+        void *cookie);
 void erlcmd_send(char *response, size_t len);
 void erlcmd_process(struct erlcmd *handler);
+
+#define CHECK(x) \
+    do { \
+        if (x < 0) \
+            errx(EXIT_FAILURE, #x " failed at %s:%d", __FILE__, __LINE__); \
+    } while (0)
 
 #endif

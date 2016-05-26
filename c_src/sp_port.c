@@ -10,13 +10,14 @@
 
 #include "erlcmd.h"
 
-#define BUFFER_SIZE     512
+#define SP_BUF_SIZE     1024
 #define WRITE_TIMEOUT   500
 
 struct sp
 {
     struct sp_port *port;
     int fd;
+    char buffer[SP_BUF_SIZE];
 };
 
 static void sp_init(struct sp *sp, const char *portname)
@@ -58,48 +59,40 @@ static void sp_init(struct sp *sp, const char *portname)
 
     if (config != NULL)
         sp_free_config(config);
+
+    memset(sp->buffer, 0, sizeof(sp->buffer));
 }
 
 static void init_resp(ei_x_buff *resp, int notif)
 {
     char hdr[3] = {0, 0, notif != 0};
 
-    if (ei_x_new(resp) < 0)
-        errx(EXIT_FAILURE, "ei_x_new");
-    if (ei_x_append_buf(resp, hdr, sizeof(hdr)) < 0)
-        errx(EXIT_FAILURE, "ei_x_append_buf");
-    if (ei_x_encode_version(resp) < 0)
-        errx(EXIT_FAILURE, "ei_x_encode_version");
+    CHECK(ei_x_new(resp));
+    CHECK(ei_x_append_buf(resp, hdr, sizeof(hdr)));
+    CHECK(ei_x_encode_version(resp));
 }
 
 static void sp_process(struct sp *sp)
 {
     ei_x_buff resp;
-    char data[BUFFER_SIZE];
     int res;
 
     init_resp(&resp, 1);
 
-    if (ei_x_encode_tuple_header(&resp, 2) < 0)
-        errx(EXIT_FAILURE, "ei_x_encode_tuple_header");
+    CHECK(ei_x_encode_tuple_header(&resp, 2));
 
-    res = sp_nonblocking_read(sp->port, data, BUFFER_SIZE);
+    res = sp_nonblocking_read(sp->port, sp->buffer, sizeof(sp->buffer));
     if (res < 0) {
-        if (ei_x_encode_atom(&resp, "error") < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_atom");
-        if (ei_x_encode_long(&resp, sp_last_error_code()) < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_long");
+        CHECK(ei_x_encode_atom(&resp, "error"));
+        CHECK(ei_x_encode_long(&resp, sp_last_error_code()));
     } else {
-        if (ei_x_encode_atom(&resp, "ok") < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_atom");
-        if (ei_x_encode_binary(&resp, data, res) < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_binary");
+        CHECK(ei_x_encode_atom(&resp, "ok"));
+        CHECK(ei_x_encode_binary(&resp, sp->buffer, res));
     }
 
     erlcmd_send(resp.buff, resp.index);
 
-    if (ei_x_free(&resp) < 0)
-        errx(EXIT_FAILURE, "ei_x_free");
+    CHECK(ei_x_free(&resp));
 }
 
 static void sp_handle_request(const char *req, void *cookie)
@@ -122,37 +115,26 @@ static void sp_handle_request(const char *req, void *cookie)
     init_resp(&resp, 0);
 
     if (strcmp(cmd, "write") == 0) {
-        char data[BUFFER_SIZE];
-        long len, res;
         int type, size;
+        long res, len;
 
-        if (ei_decode_binary(req, &req_index, data, &len) < 0)
-            errx(EXIT_FAILURE, "ei_decode_binary");
+        CHECK(ei_get_type(req, &req_index, &type, &size));
+        if (size > (int)sizeof(sp->buffer))
+            errx(EXIT_FAILURE, "binary too large");
 
-        if (ei_get_type(req, &req_index, &type, &size) < 0)
-            errx(EXIT_FAILURE, "ei_get_type");
+        CHECK(ei_decode_binary(req, &req_index, sp->buffer, &len));
 
-        if (size > BUFFER_SIZE)
-            errx(EXIT_FAILURE, "data too large");
-
-        res = sp_blocking_write(sp->port, data, len, WRITE_TIMEOUT);
+        res = sp_blocking_write(sp->port, sp->buffer, len, WRITE_TIMEOUT);
         if (res < 0) {
-            if (ei_x_encode_tuple_header(&resp, 2) < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_tuple_header");
-            if (ei_x_encode_atom(&resp, "error") < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_atom");
-            if (ei_x_encode_long(&resp, sp_last_error_code()) < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_long");
+            CHECK(ei_x_encode_tuple_header(&resp, 2));
+            CHECK(ei_x_encode_atom(&resp, "error"));
+            CHECK(ei_x_encode_long(&resp, sp_last_error_code()));
         } else if (res != len) {
-            if (ei_x_encode_tuple_header(&resp, 2) < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_tuple_header");
-            if (ei_x_encode_atom(&resp, "error") < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_atom");
-            if (ei_x_encode_atom(&resp, "timeout") < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_atom");
+            CHECK(ei_x_encode_tuple_header(&resp, 2));
+            CHECK(ei_x_encode_atom(&resp, "error"));
+            CHECK(ei_x_encode_atom(&resp, "timeout"));
         } else {
-            if (ei_x_encode_atom(&resp, "ok") < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_atom");
+            CHECK(ei_x_encode_atom(&resp, "ok"));
         }
     } else {
         errx(EXIT_FAILURE, "unknown command: %s", cmd);
@@ -160,8 +142,7 @@ static void sp_handle_request(const char *req, void *cookie)
 
     erlcmd_send(resp.buff, resp.index);
 
-    if (ei_x_free(&resp) < 0)
-        errx(EXIT_FAILURE, "ei_x_free");
+    CHECK(ei_x_free(&resp));
 }
 
 int sp_main(int argc, char *argv[])

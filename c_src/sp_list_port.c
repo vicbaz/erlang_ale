@@ -6,7 +6,8 @@
 
 #include "erlcmd.h"
 
-static void sp_list_handle_request(const char *req, void *cookie __attribute__ ((unused)))
+static void sp_list_handle_request(const char *req,
+        void *cookie __attribute__ ((unused)))
 {
     int req_index = sizeof(uint16_t);
     char cmd[MAXATOMLEN];
@@ -22,30 +23,23 @@ static void sp_list_handle_request(const char *req, void *cookie __attribute__ (
         char hdr[2] = {0, 0};
         struct sp_port **ports, **port;
 
-        if (ei_x_new(&resp) < 0)
-            errx(EXIT_FAILURE, "ei_x_new");
-        if (ei_x_append_buf(&resp, hdr, sizeof(hdr)) < 0)
-            errx(EXIT_FAILURE, "ei_x_append_buf");
-        if (ei_x_encode_version(&resp) < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_version");
+        CHECK(ei_x_new(&resp));
+        CHECK(ei_x_append_buf(&resp, hdr, sizeof(hdr)));
+        CHECK(ei_x_encode_version(&resp));
 
         if (sp_list_ports(&ports) != SP_OK)
             errx(EXIT_FAILURE, "sp_list_ports: %s", sp_last_error_message());
 
         for (port = ports; *port != NULL; port++) {
-            if (ei_x_encode_list_header(&resp, 1) < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_list_header");
-            if (ei_x_encode_string(&resp, sp_get_port_name(*port)) < 0)
-                errx(EXIT_FAILURE, "ei_x_encode_string");
+            CHECK(ei_x_encode_list_header(&resp, 1));
+            CHECK(ei_x_encode_string(&resp, sp_get_port_name(*port)));
         }
-        if (ei_x_encode_empty_list(&resp) < 0)
-            errx(EXIT_FAILURE, "ei_x_encode_empty_list");
+        CHECK(ei_x_encode_empty_list(&resp));
 
         erlcmd_send(resp.buff, resp.index);
 
         sp_free_port_list(ports);
-        if (ei_x_free(&resp) < 0)
-            errx(EXIT_FAILURE, "ei_x_free");
+        CHECK(ei_x_free(&resp));
     } else {
         errx(EXIT_FAILURE, "unknown command: %s", cmd);
     }
