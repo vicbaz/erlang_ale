@@ -10,6 +10,18 @@
 
 #include "erlcmd.h"
 
+#define CHECK_EI(x) \
+    do { \
+        if (x < 0) \
+            errx(EXIT_FAILURE, #x " failed at %s:%d", __FILE__, __LINE__); \
+    } while (0)
+
+#define CHECK_SP(x) \
+    do { \
+        if (x != SP_OK) \
+            errx(EXIT_FAILURE, #x ": %s", sp_last_error_message()); \
+    } while (0)
+
 #define SP_BUF_SIZE     1024
 #define WRITE_TIMEOUT   500
 
@@ -24,38 +36,21 @@ static void sp_init(struct sp *sp, const char *portname)
 {
     struct sp_port_config *config = NULL;
 
-    if (sp_get_port_by_name(portname, &sp->port) != SP_OK)
-        errx(EXIT_FAILURE, "sp_get_port_by_name: %s", sp_last_error_message());
+    CHECK_SP(sp_get_port_by_name(portname, &sp->port));
+    CHECK_SP(sp_open(sp->port, SP_MODE_READ_WRITE));
+    CHECK_SP(sp_get_port_handle(sp->port, &sp->fd));
+    CHECK_SP(sp_flush(sp->port, SP_BUF_BOTH));
 
-    if (sp_open(sp->port, SP_MODE_READ_WRITE) != SP_OK)
-        errx(EXIT_FAILURE, "sp_open: %s", sp_last_error_message());
-
-    if (sp_get_port_handle(sp->port, &sp->fd) != SP_OK)
-        errx(EXIT_FAILURE, "sp_get_port_handle: %s", sp_last_error_message());
-
-    if (sp_flush(sp->port, SP_BUF_BOTH) != SP_OK)
-        errx(EXIT_FAILURE, "sp_flush: %s", sp_last_error_message());
-
-    if (sp_new_config(&config) != SP_OK)
-        errx(EXIT_FAILURE, "sp_new_config: %s", sp_last_error_message());
-    else if (sp_get_config(sp->port, config) != SP_OK)
-        errx(EXIT_FAILURE, "sp_get_config: %s", sp_last_error_message());
-    else if (sp_set_config_baudrate(config, 115200) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_baudrate: %s", sp_last_error_message());
-    else if (sp_set_config_bits(config, 8) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_bits: %s", sp_last_error_message());
-    else if (sp_set_config_parity(config, SP_PARITY_NONE) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_parity: %s", sp_last_error_message());
-    else if (sp_set_config_stopbits(config, 1) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_stopbits: %s", sp_last_error_message());
-    else if (sp_set_config_dtr(config, SP_DTR_ON) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_dtr: %s", sp_last_error_message());
-    else if (sp_set_config_xon_xoff(config, SP_XONXOFF_DISABLED) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_xon_xoff: %s", sp_last_error_message());
-    else if (sp_set_config_flowcontrol(config, SP_FLOWCONTROL_NONE) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config_flowcontrol: %s", sp_last_error_message());
-    else if (sp_set_config(sp->port, config) != SP_OK)
-        errx(EXIT_FAILURE, "sp_set_config: %s", sp_last_error_message());
+    CHECK_SP(sp_new_config(&config));
+    CHECK_SP(sp_get_config(sp->port, config));
+    CHECK_SP(sp_set_config_baudrate(config, 115200));
+    CHECK_SP(sp_set_config_bits(config, 8));
+    CHECK_SP(sp_set_config_parity(config, SP_PARITY_NONE));
+    CHECK_SP(sp_set_config_stopbits(config, 1));
+    CHECK_SP(sp_set_config_dtr(config, SP_DTR_ON));
+    CHECK_SP(sp_set_config_xon_xoff(config, SP_XONXOFF_DISABLED));
+    CHECK_SP(sp_set_config_flowcontrol(config, SP_FLOWCONTROL_NONE));
+    CHECK_SP(sp_set_config(sp->port, config));
 
     if (config != NULL)
         sp_free_config(config);
@@ -67,9 +62,9 @@ static void init_resp(ei_x_buff *resp, int notif)
 {
     char hdr[3] = {0, 0, notif != 0};
 
-    CHECK(ei_x_new(resp));
-    CHECK(ei_x_append_buf(resp, hdr, sizeof(hdr)));
-    CHECK(ei_x_encode_version(resp));
+    CHECK_EI(ei_x_new(resp));
+    CHECK_EI(ei_x_append_buf(resp, hdr, sizeof(hdr)));
+    CHECK_EI(ei_x_encode_version(resp));
 }
 
 static void sp_process(struct sp *sp)
@@ -79,20 +74,20 @@ static void sp_process(struct sp *sp)
 
     init_resp(&resp, 1);
 
-    CHECK(ei_x_encode_tuple_header(&resp, 2));
+    CHECK_EI(ei_x_encode_tuple_header(&resp, 2));
 
     res = sp_nonblocking_read(sp->port, sp->buffer, sizeof(sp->buffer));
     if (res < 0) {
-        CHECK(ei_x_encode_atom(&resp, "error"));
-        CHECK(ei_x_encode_long(&resp, sp_last_error_code()));
+        CHECK_EI(ei_x_encode_atom(&resp, "error"));
+        CHECK_EI(ei_x_encode_long(&resp, sp_last_error_code()));
     } else {
-        CHECK(ei_x_encode_atom(&resp, "ok"));
-        CHECK(ei_x_encode_binary(&resp, sp->buffer, res));
+        CHECK_EI(ei_x_encode_atom(&resp, "ok"));
+        CHECK_EI(ei_x_encode_binary(&resp, sp->buffer, res));
     }
 
     erlcmd_send(resp.buff, resp.index);
 
-    CHECK(ei_x_free(&resp));
+    CHECK_EI(ei_x_free(&resp));
 }
 
 static void sp_handle_request(const char *req, void *cookie)
@@ -118,23 +113,23 @@ static void sp_handle_request(const char *req, void *cookie)
         int type, size;
         long res, len;
 
-        CHECK(ei_get_type(req, &req_index, &type, &size));
-        if (size > (int)sizeof(sp->buffer))
+        CHECK_EI(ei_get_type(req, &req_index, &type, &size));
+        if ((size_t)size > sizeof(sp->buffer))
             errx(EXIT_FAILURE, "binary too large");
 
-        CHECK(ei_decode_binary(req, &req_index, sp->buffer, &len));
+        CHECK_EI(ei_decode_binary(req, &req_index, sp->buffer, &len));
 
         res = sp_blocking_write(sp->port, sp->buffer, len, WRITE_TIMEOUT);
         if (res < 0) {
-            CHECK(ei_x_encode_tuple_header(&resp, 2));
-            CHECK(ei_x_encode_atom(&resp, "error"));
-            CHECK(ei_x_encode_long(&resp, sp_last_error_code()));
+            CHECK_EI(ei_x_encode_tuple_header(&resp, 2));
+            CHECK_EI(ei_x_encode_atom(&resp, "error"));
+            CHECK_EI(ei_x_encode_long(&resp, sp_last_error_code()));
         } else if (res != len) {
-            CHECK(ei_x_encode_tuple_header(&resp, 2));
-            CHECK(ei_x_encode_atom(&resp, "error"));
-            CHECK(ei_x_encode_atom(&resp, "timeout"));
+            CHECK_EI(ei_x_encode_tuple_header(&resp, 2));
+            CHECK_EI(ei_x_encode_atom(&resp, "error"));
+            CHECK_EI(ei_x_encode_atom(&resp, "timeout"));
         } else {
-            CHECK(ei_x_encode_atom(&resp, "ok"));
+            CHECK_EI(ei_x_encode_atom(&resp, "ok"));
         }
     } else {
         errx(EXIT_FAILURE, "unknown command: %s", cmd);
@@ -142,44 +137,91 @@ static void sp_handle_request(const char *req, void *cookie)
 
     erlcmd_send(resp.buff, resp.index);
 
-    CHECK(ei_x_free(&resp));
+    CHECK_EI(ei_x_free(&resp));
+}
+
+static void sp_list_handle_request(const char *req,
+        void *cookie __attribute__ ((unused)))
+{
+    int req_index = sizeof(uint16_t);
+    char cmd[MAXATOMLEN];
+
+    if (ei_decode_version(req, &req_index, NULL) < 0)
+        errx(EXIT_FAILURE, "message version issue?");
+
+    if (ei_decode_atom(req, &req_index, cmd) < 0)
+        errx(EXIT_FAILURE, "expecting command atom");
+
+    if (strcmp(cmd, "list") == 0) {
+        ei_x_buff resp;
+        char hdr[2] = {0, 0};
+        struct sp_port **ports, **port;
+
+        CHECK_EI(ei_x_new(&resp));
+        CHECK_EI(ei_x_append_buf(&resp, hdr, sizeof(hdr)));
+        CHECK_EI(ei_x_encode_version(&resp));
+
+        CHECK_SP(sp_list_ports(&ports));
+
+        for (port = ports; *port != NULL; port++) {
+            CHECK_EI(ei_x_encode_list_header(&resp, 1));
+            CHECK_EI(ei_x_encode_string(&resp, sp_get_port_name(*port)));
+        }
+        CHECK_EI(ei_x_encode_empty_list(&resp));
+
+        erlcmd_send(resp.buff, resp.index);
+
+        sp_free_port_list(ports);
+        CHECK_EI(ei_x_free(&resp));
+    } else {
+        errx(EXIT_FAILURE, "unknown command: %s", cmd);
+    }
 }
 
 int sp_main(int argc, char *argv[])
 {
-    struct sp sp;
     struct erlcmd handler;
 
     if (argc != 3)
-        errx(EXIT_FAILURE, "%s sp <port name>", argv[0]);
+        errx(EXIT_FAILURE, "%s sp list | <port name>", argv[0]);
 
-    sp_init(&sp, argv[2]);
-    erlcmd_init(&handler, sp_handle_request, &sp);
+    if (strcmp(argv[2], "list") == 0) {
+        erlcmd_init(&handler, sp_list_handle_request, NULL);
 
-    for (;;) {
-        int rc;
-        struct pollfd fdset[2];
-
-        fdset[0].fd = STDIN_FILENO;
-        fdset[0].events = POLLIN;
-        fdset[0].revents = 0;
-
-        fdset[1].fd = sp.fd;
-        fdset[1].events = POLLIN;
-        fdset[1].revents = 0;
-
-        rc = poll(fdset, 2, -1);
-        if (rc < 0) {
-            if (errno == EINTR)
-                continue;
-            err(EXIT_FAILURE, "poll");
-        }
-
-        if (fdset[0].revents & (POLLIN | POLLHUP))
+        for (;;) {
             erlcmd_process(&handler);
+        }
+    } else {
+        struct sp sp;
 
-        if (fdset[1].revents & POLLIN)
-            sp_process(&sp);
+        sp_init(&sp, argv[2]);
+        erlcmd_init(&handler, sp_handle_request, &sp);
+
+        for (;;) {
+            int ret;
+            struct pollfd fds[2];
+
+            fds[0].fd = STDIN_FILENO;
+            fds[0].events = POLLIN;
+            fds[0].revents = 0;
+
+            fds[1].fd = sp.fd;
+            fds[1].events = POLLIN;
+            fds[1].revents = 0;
+
+            ret = poll(fds, 2, -1);
+            if (ret < 0) {
+                if (errno == EINTR)
+                    continue;
+                err(EXIT_FAILURE, "poll");
+            }
+
+            if (fds[0].revents & (POLLIN | POLLHUP))
+                erlcmd_process(&handler);
+
+            if (fds[1].revents & POLLIN)
+                sp_process(&sp);
+        }
     }
 
     return 0;

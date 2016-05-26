@@ -40,10 +40,4 @@ void erlcmd_init(struct erlcmd *handler,
 void erlcmd_send(char *response, size_t len);
 void erlcmd_process(struct erlcmd *handler);
 
-#define CHECK(x) \
-    do { \
-        if (x < 0) \
-            errx(EXIT_FAILURE, #x " failed at %s:%d", __FILE__, __LINE__); \
-    } while (0)
-
 #endif

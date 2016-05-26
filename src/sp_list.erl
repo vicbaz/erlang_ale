@@ -31,7 +31,7 @@ list(ServerRef) ->
 %% gen_server
 
 init([]) ->
-    Port = ale_util:open_port(["sp_list"]),
+    Port = ale_util:open_port(["sp", "list"]),
     {ok, #state{port = Port}}.
 
 handle_call(list, _From, #state{port = Port} = State) ->
