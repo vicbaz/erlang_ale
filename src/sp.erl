@@ -18,7 +18,7 @@
          code_change/3]).
 
 -define(REPLY, 0).
--define(NOTIFICATION, 1).
+-define(NOTIF, 1).
 
 -record(state,
         {
@@ -59,10 +59,12 @@ handle_call(Command, _From, #state{port = Port} = State) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({Port, {data, <<?NOTIFICATION, Notif/binary>>}},
+handle_info({Port, {data, <<?NOTIF, Data/binary>>}},
             #state{port = Port, listener = Pid} = State) ->
-    Pid ! binary_to_term(Notif),
-    {noreply, State}.
+    Pid ! binary_to_term(Data),
+    {noreply, State};
+handle_info({_Port, {exit_status, _Status} = Reason}, State) ->
+    {stop, Reason, State}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -75,6 +77,6 @@ code_change(_OldVsn, State, _Extra) ->
 port_call(Port, Command) ->
     Port ! {self(), {command, term_to_binary(Command)}},
     receive
-        {Port, {data, <<?REPLY, Response/binary>>}} ->
-            binary_to_term(Response)
+        {Port, {data, <<?REPLY, Data/binary>>}} ->
+            binary_to_term(Data)
     end.

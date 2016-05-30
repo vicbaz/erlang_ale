@@ -26,7 +26,7 @@
 #define WRITE_TIMEOUT   500
 
 #define REPLY           0
-#define NOTIFICATION    1
+#define NOTIF           1
 
 struct sp
 {
@@ -75,7 +75,7 @@ static void sp_process(struct sp *sp)
     ei_x_buff resp;
     int res;
 
-    init_resp(&resp, NOTIFICATION);
+    init_resp(&resp, NOTIF);
 
     CHECK_EI(ei_x_encode_tuple_header(&resp, 2));
 
@@ -178,14 +178,22 @@ static void sp_list_handle_request(const char *req,
     }
 }
 
+static void usage(char *argv[])
+{
+    errx(EXIT_FAILURE, "%s sp list | <port name>", argv[0]);
+}
+
 int sp_main(int argc, char *argv[])
 {
     struct erlcmd handler;
 
-    if (argc != 3)
-        errx(EXIT_FAILURE, "%s sp list | <port name>", argv[0]);
+    if (argc < 3)
+        usage(argv);
 
     if (strcmp(argv[2], "list") == 0) {
+        if (argc != 3)
+            usage(argv);
+
         erlcmd_init(&handler, sp_list_handle_request, NULL);
 
         for (;;) {
