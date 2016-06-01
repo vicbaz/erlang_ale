@@ -3,8 +3,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2,
-         start_link/3,
+-export([start_link/1,
+         start_link/2,
          stop/1,
          list/1,
          write/2]).
@@ -28,11 +28,11 @@
 
 %% API
 
-start_link(SerialPort, Pid) when is_pid(Pid) ->
-    gen_server:start_link(?MODULE, [SerialPort, Pid], []).
+start_link(Args) when is_map(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
 
-start_link(ServerName, SerialPort, Pid) when is_pid(Pid) ->
-    gen_server:start_link(ServerName, ?MODULE, [SerialPort, Pid], []).
+start_link(ServerName, Args) when is_map(Args) ->
+    gen_server:start_link(ServerName, ?MODULE, Args, []).
 
 stop(ServerRef) ->
     gen_server:call(ServerRef, stop).
@@ -45,9 +45,14 @@ write(ServerRef, Data) when is_binary(Data) ->
 
 %% gen_server
 
-init([SerialPort, Pid]) ->
-    Port = ale_util:open_port(["sp", SerialPort]),
-    {ok, #state{port = Port, listener = Pid}}.
+init(#{serial_port := "list"}) ->
+    Port = ale_util:open_port(["sp", "list"]),
+    {ok, #state{port = Port}};
+init(#{serial_port := SerialPort,
+       xon_xoff := XonXoff,
+       listener := Listener}) when is_pid(Listener) ->
+    Port = ale_util:open_port(["sp", SerialPort, boolean_to_list(XonXoff)]),
+    {ok, #state{port = Port, listener = Listener}}.
 
 handle_call(stop, _From, #state{port = Port} = State) ->
     port_close(Port),
@@ -60,8 +65,8 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({Port, {data, <<?NOTIF, Data/binary>>}},
-            #state{port = Port, listener = Pid} = State) ->
-    Pid ! binary_to_term(Data),
+            #state{port = Port, listener = Listener} = State) ->
+    Listener ! binary_to_term(Data),
     {noreply, State};
 handle_info({_Port, {exit_status, _Status} = Reason}, State) ->
     {stop, Reason, State}.
@@ -73,6 +78,9 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% Internal
+
+boolean_to_list(false) -> "0";
+boolean_to_list(true) -> "1".
 
 port_call(Port, Command) ->
     Port ! {self(), {command, term_to_binary(Command)}},

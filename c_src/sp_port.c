@@ -35,7 +35,7 @@ struct sp
     char buffer[SP_BUF_SIZE];
 };
 
-static void sp_init(struct sp *sp, const char *portname)
+static void sp_init(struct sp *sp, const char *portname, int xonxoff)
 {
     struct sp_port_config *config = NULL;
 
@@ -50,9 +50,12 @@ static void sp_init(struct sp *sp, const char *portname)
     CHECK_SP(sp_set_config_bits(config, 8));
     CHECK_SP(sp_set_config_parity(config, SP_PARITY_NONE));
     CHECK_SP(sp_set_config_stopbits(config, 1));
+    CHECK_SP(sp_set_config_rts(config, SP_RTS_OFF));
+    CHECK_SP(sp_set_config_cts(config, SP_CTS_IGNORE));
     CHECK_SP(sp_set_config_dtr(config, SP_DTR_ON));
-    CHECK_SP(sp_set_config_xon_xoff(config, SP_XONXOFF_DISABLED));
-    CHECK_SP(sp_set_config_flowcontrol(config, SP_FLOWCONTROL_NONE));
+    CHECK_SP(sp_set_config_dsr(config, SP_DSR_IGNORE));
+    CHECK_SP(sp_set_config_xon_xoff(config,
+                xonxoff ? SP_XONXOFF_INOUT : SP_XONXOFF_DISABLED));
     CHECK_SP(sp_set_config(sp->port, config));
 
     if (config != NULL)
@@ -180,7 +183,7 @@ static void sp_list_handle_request(const char *req,
 
 static void usage(char *argv[])
 {
-    errx(EXIT_FAILURE, "%s sp list | <port name>", argv[0]);
+    errx(EXIT_FAILURE, "%s sp list | <portname> <xonxoff>", argv[0]);
 }
 
 int sp_main(int argc, char *argv[])
@@ -200,9 +203,19 @@ int sp_main(int argc, char *argv[])
             erlcmd_process(&handler);
         }
     } else {
+        char *portname;
+        int xonxoff = 0;
         struct sp sp;
 
-        sp_init(&sp, argv[2]);
+        if (argc != 4)
+            usage(argv);
+
+        portname = argv[2];
+
+        if (sscanf(argv[3], "%d", &xonxoff) != 1)
+            usage(argv);
+
+        sp_init(&sp, portname, xonxoff);
         erlcmd_init(&handler, sp_handle_request, &sp);
 
         for (;;) {
