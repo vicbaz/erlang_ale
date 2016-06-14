@@ -87,4 +87,7 @@ port_call(Port, Command) ->
     receive
         {Port, {data, <<?REPLY, Data/binary>>}} ->
             binary_to_term(Data)
+    after
+        5000 ->
+            exit(port_call_timeout)
     end.

@@ -166,4 +166,7 @@ call_port(Port, Command, Args) ->
     erlang:send(Port, {self(), {command, term_to_binary(Message)}}),
     receive
         {_, {data, Response}} -> binary_to_term(Response)
+    after
+        5000 ->
+            exit(port_call_timeout)
     end.
