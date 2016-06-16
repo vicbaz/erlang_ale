@@ -84,10 +84,10 @@ static void sp_process(struct sp *sp)
 
     res = sp_nonblocking_read(sp->port, sp->buffer, sizeof(sp->buffer));
     if (res < 0) {
-        CHECK_EI(ei_x_encode_atom(&resp, "error"));
+        CHECK_EI(ei_x_encode_atom(&resp, "sp_error"));
         CHECK_EI(ei_x_encode_long(&resp, sp_last_error_code()));
     } else {
-        CHECK_EI(ei_x_encode_atom(&resp, "ok"));
+        CHECK_EI(ei_x_encode_atom(&resp, "sp_data"));
         CHECK_EI(ei_x_encode_binary(&resp, sp->buffer, res));
     }
 
