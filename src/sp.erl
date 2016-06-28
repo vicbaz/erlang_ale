@@ -49,9 +49,12 @@ init(#{serial_port := "list"}) ->
     Port = ale_util:open_port(["sp", "list"]),
     {ok, #state{port = Port}};
 init(#{serial_port := SerialPort,
-       xon_xoff := XonXoff,
+       baudrate := Baudrate,
+       flowcontrol := FlowControl,
        listener := Listener}) when is_pid(Listener) ->
-    Port = ale_util:open_port(["sp", SerialPort, boolean_to_list(XonXoff)]),
+    Port = ale_util:open_port(["sp", SerialPort,
+                               integer_to_list(Baudrate),
+                               flowcontrol_to_list(FlowControl)]),
     {ok, #state{port = Port, listener = Listener}}.
 
 handle_call(stop, _From, #state{port = Port} = State) ->
@@ -79,8 +82,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Internal
 
-boolean_to_list(false) -> "0";
-boolean_to_list(true) -> "1".
+flowcontrol_to_list(none) -> "0";
+flowcontrol_to_list(xonxoff) -> "1";
+flowcontrol_to_list(rtscts) -> "2";
+flowcontrol_to_list(dtrdsr) -> "3".
 
 port_call(Port, Command) ->
     Port ! {self(), {command, term_to_binary(Command)}},
