@@ -45,15 +45,15 @@ write(ServerRef, Data) when is_binary(Data) ->
 
 %% gen_server
 
-init(#{serial_port := "list"}) ->
+init(#{portname := "list"}) ->
     Port = ale_util:open_port(["sp", "list"]),
     {ok, #state{port = Port}};
-init(#{serial_port := SerialPort,
-       baudrate := Baudrate,
+init(#{portname := PortName,
+       baudrate := BaudRate,
        flowcontrol := FlowControl,
        listener := Listener}) when is_pid(Listener) ->
-    Port = ale_util:open_port(["sp", SerialPort,
-                               integer_to_list(Baudrate),
+    Port = ale_util:open_port(["sp", PortName,
+                               integer_to_list(BaudRate),
                                flowcontrol_to_list(FlowControl)]),
     {ok, #state{port = Port, listener = Listener}}.
 
