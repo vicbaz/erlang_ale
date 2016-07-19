@@ -242,6 +242,9 @@ int sp_main(int argc, char *argv[])
             if (fds[0].revents & (POLLIN | POLLHUP))
                 erlcmd_process(&handler);
 
+            if (fds[1].revents & POLLHUP)
+                errx(EXIT_FAILURE, "POLLHUP");
+
             if (fds[1].revents & POLLIN)
                 sp_process(&sp);
         }
