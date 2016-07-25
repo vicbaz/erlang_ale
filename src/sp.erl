@@ -22,8 +22,8 @@
 
 -record(state,
         {
-         port       :: port(),
-         listener   :: pid()
+          port          :: port(),
+          listener      :: {pid(), reference()}
         }).
 
 %% API
@@ -51,11 +51,12 @@ init(#{portname := "list"}) ->
 init(#{portname := PortName,
        baudrate := BaudRate,
        flowcontrol := FlowControl,
-       listener := Listener}) when is_pid(Listener) ->
+       listener := Pid}) when is_pid(Pid) ->
     Port = ale_util:open_port(["sp", PortName,
                                integer_to_list(BaudRate),
                                flowcontrol_to_list(FlowControl)]),
-    {ok, #state{port = Port, listener = Listener}}.
+    MRef = monitor(process, Pid),
+    {ok, #state{port = Port, listener = {Pid, MRef}}}.
 
 handle_call(stop, _From, #state{port = Port} = State) ->
     port_close(Port),
@@ -68,11 +69,14 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({Port, {data, <<?NOTIF, Data/binary>>}},
-            #state{port = Port, listener = Listener} = State) ->
-    Listener ! binary_to_term(Data),
+            #state{port = Port, listener = {Pid, _}} = State) ->
+    Pid ! binary_to_term(Data),
     {noreply, State};
 handle_info({_Port, {exit_status, _Status} = Reason}, State) ->
-    {stop, Reason, State}.
+    {stop, Reason, State};
+handle_info({'DOWN', MRef, process, _Pid, Reason},
+            #state{listener = {_, MRef}} = State) ->
+    {stop, {listener_down, Reason}, State}.
 
 terminate(_Reason, _State) ->
     ok.
