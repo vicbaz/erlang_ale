@@ -22,7 +22,7 @@
             errx(EXIT_FAILURE, #x ": %s", sp_last_error_message()); \
     } while (0)
 
-#define SP_BUF_SIZE     1024
+#define SP_BUF_SIZE     (1024 + 32)
 #define WRITE_TIMEOUT   500
 
 #define REPLY           0
