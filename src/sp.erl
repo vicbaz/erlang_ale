@@ -35,7 +35,7 @@ start_link(ServerName, Args) when is_map(Args) ->
     gen_server:start_link(ServerName, ?MODULE, Args, []).
 
 stop(ServerRef) ->
-    gen_server:call(ServerRef, stop).
+    gen_server:stop(ServerRef, normal, 5000).
 
 list(ServerRef) ->
     gen_server:call(ServerRef, list).
@@ -58,9 +58,6 @@ init(#{portname := PortName,
     MRef = monitor(process, Pid),
     {ok, #state{port = Port, listener = {Pid, MRef}}}.
 
-handle_call(stop, _From, #state{port = Port} = State) ->
-    port_close(Port),
-    {stop, normal, ok, State#state{port = undefined}};
 handle_call(Command, _From, #state{port = Port} = State) ->
     Reply = port_call(Port, Command),
     {reply, Reply, State}.
@@ -76,7 +73,7 @@ handle_info({_Port, {exit_status, _Status} = Reason}, State) ->
     {stop, Reason, State};
 handle_info({'DOWN', MRef, process, _Pid, Reason},
             #state{listener = {_, MRef}} = State) ->
-    {stop, {listener_down, Reason}, State}.
+    {stop, actual_reason(Reason), State}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -100,3 +97,12 @@ port_call(Port, Command) ->
         5000 ->
             exit(port_call_timeout)
     end.
+
+actual_reason(normal) ->
+    normal;
+actual_reason(shutdown) ->
+    shutdown;
+actual_reason({shutdown, _Term} = Reason) ->
+    Reason;
+actual_reason(Reason) ->
+    {listener_down, Reason}.
