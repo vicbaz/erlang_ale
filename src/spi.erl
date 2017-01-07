@@ -168,5 +168,5 @@ call_port(Port, Command, Args) ->
         {_, {data, Response}} -> binary_to_term(Response)
     after
         5000 ->
-            exit(port_call_timeout)
+            exit(timeout)
     end.
