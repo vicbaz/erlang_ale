@@ -1,0 +1,11 @@
+{application, erlang_ale,
+ [{description, "Erlang/ALE - Erlang Actor Library for Embedded"},
+  {vsn, "0.1.0"},
+  {modules, []},
+  {registered, []},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env, []}
+ ]}.
