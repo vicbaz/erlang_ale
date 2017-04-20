@@ -13,6 +13,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-include_lib("kernel/include/file.hrl").
+
 -define(REPLY, 0).
 -define(NOTIF, 1).
 
@@ -63,7 +65,7 @@ init(#{portname := PortName,
        baudrate := BaudRate,
        flowcontrol := FlowControl,
        listener := Pid}) when is_pid(Pid) ->
-    Port = ale_util:open_port(["sp", PortName,
+    Port = ale_util:open_port(["sp", maybe_resolve_symlink(PortName),
                                integer_to_list(BaudRate),
                                flowcontrol_to_list(FlowControl)]),
     MRef = monitor(process, Pid),
@@ -148,6 +150,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+maybe_resolve_symlink(Name) ->
+    case is_symlink(Name) of
+        true ->
+            handle_read_link(file:read_link(Name), Name);
+        false ->
+            Name
+    end.
+
+is_symlink(Name) ->
+    {ok, Info} = file:read_link_info(Name),
+    Info#file_info.type =:= symlink.
+
+handle_read_link({ok, TargetName}, SourceName) ->
+    case filename:pathtype(TargetName) of
+        relative ->
+            filename:join(filename:dirname(SourceName), TargetName);
+        absolute ->
+            TargetName
+    end.
 
 flowcontrol_to_list(none) -> "0";
 flowcontrol_to_list(xonxoff) -> "1";
